@@ -1,16 +1,151 @@
 #!/usr/bin/env bash
-# Usage: yap-state <state> [text]
+# Usage: yap-state [--ttl <seconds>] <state> [text]
 # Fire-and-forget with a 2s timeout. Missing env or a down display is not an error.
+# For thinking/working, starts a background pulse (~75s) so the glass does not
+# auto-idle during long tasks. done/error/idle/sleeping stop the pulse.
 set -euo pipefail
+
 if [[ -z "${YAP_API_URL:-}" || -z "${YAP_API_KEY:-}" ]]; then
   exit 0
 fi
-if [[ -z "${1:-}" ]]; then
+
+ttl=""
+state=""
+text=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --ttl)
+      if [[ -z "${2:-}" ]]; then
+        exit 0
+      fi
+      ttl="$2"
+      shift 2
+      ;;
+    --ttl=*)
+      ttl="${1#--ttl=}"
+      shift
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -*)
+      # Unknown flag — stay silent like other failures.
+      exit 0
+      ;;
+    *)
+      if [[ -z "$state" ]]; then
+        state="$1"
+      elif [[ -z "$text" ]]; then
+        text="$1"
+      fi
+      shift
+      ;;
+  esac
+done
+
+if [[ -z "$state" ]]; then
   exit 0
 fi
-body=$(node -e 'const [state,text]=process.argv.slice(1); const body={state}; if(text) body.text=text; process.stdout.write(JSON.stringify(body));' "$1" "${2:-}")
-curl --silent --show-error --max-time 2 \
-  -X POST "$YAP_API_URL/v1/state" \
-  -H "authorization: Bearer $YAP_API_KEY" \
-  -H "content-type: application/json" \
-  -d "$body" >/dev/null || true
+
+if [[ -n "$ttl" ]]; then
+  if ! [[ "$ttl" =~ ^[1-9][0-9]*$ ]] || (( ttl > 86400 )); then
+    exit 0
+  fi
+fi
+
+body=$(
+  node -e '
+    const [state, text, ttl] = process.argv.slice(1);
+    const body = { state };
+    if (text) body.text = text;
+    if (ttl) body.ttl_s = Number(ttl);
+    process.stdout.write(JSON.stringify(body));
+  ' "$state" "$text" "$ttl"
+)
+
+pulse_id=$(
+  node -e '
+    const crypto = require("crypto");
+    const key = process.argv[1] || "";
+    const url = process.argv[2] || "";
+    const h = crypto.createHash("sha256").update(url + "\0" + key).digest("hex").slice(0, 16);
+    process.stdout.write(h);
+  ' "$YAP_API_KEY" "$YAP_API_URL"
+)
+pulse_dir="${TMPDIR:-/tmp}/yap-pulse-${pulse_id}"
+pulse_pid_file="${pulse_dir}/pid"
+pulse_body_file="${pulse_dir}/body.json"
+pulse_interval_s="${YAP_PULSE_INTERVAL_S:-75}"
+
+stop_pulse() {
+  if [[ -f "$pulse_pid_file" ]]; then
+    local old_pid
+    old_pid=$(cat "$pulse_pid_file" 2>/dev/null || true)
+    if [[ -n "${old_pid:-}" ]] && kill -0 "$old_pid" 2>/dev/null; then
+      kill "$old_pid" 2>/dev/null || true
+    fi
+  fi
+  rm -rf "$pulse_dir" 2>/dev/null || true
+}
+
+post_state() {
+  local payload="$1"
+  curl --silent --show-error --max-time 2 \
+    -X POST "$YAP_API_URL/v1/state" \
+    -H "authorization: Bearer $YAP_API_KEY" \
+    -H "content-type: application/json" \
+    -d "$payload" >/dev/null || true
+}
+
+start_pulse() {
+  mkdir -p "$pulse_dir"
+  printf '%s' "$body" >"$pulse_body_file"
+
+  # Detached loop: prefer heartbeat endpoint; fall back to re-POSTing last state.
+  nohup bash -c '
+    set +e
+    api_url="$1"
+    api_key="$2"
+    body_file="$3"
+    pid_file="$4"
+    interval_s="$5"
+    echo "$$" >"$pid_file"
+    while true; do
+      sleep "$interval_s" || exit 0
+      code=$(curl --silent --show-error --max-time 2 \
+        -o /dev/null -w "%{http_code}" \
+        -X POST "$api_url/v1/state/heartbeat" \
+        -H "authorization: Bearer $api_key" \
+        -H "content-type: application/json" \
+        -d "{}" 2>/dev/null || echo "000")
+      if [[ "$code" != "200" && "$code" != "204" ]]; then
+        if [[ -f "$body_file" ]]; then
+          curl --silent --show-error --max-time 2 \
+            -X POST "$api_url/v1/state" \
+            -H "authorization: Bearer $api_key" \
+            -H "content-type: application/json" \
+            -d @"$body_file" >/dev/null 2>/dev/null || true
+        fi
+      fi
+    done
+  ' bash "$YAP_API_URL" "$YAP_API_KEY" "$pulse_body_file" "$pulse_pid_file" "$pulse_interval_s" \
+    >/dev/null 2>&1 &
+  disown $! 2>/dev/null || true
+}
+
+post_state "$body"
+
+case "$state" in
+  thinking|working)
+    # Restart pulse with the latest body (kill old loop first).
+    stop_pulse
+    start_pulse
+    ;;
+  done|error|idle|sleeping)
+    stop_pulse
+    ;;
+esac
+
+exit 0

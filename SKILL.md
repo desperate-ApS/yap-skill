@@ -47,6 +47,8 @@ Send 3–6 updates per task, not one per tool call:
 3. `done` or `error` when that task finishes (optional text).
 4. `idle` when you go quiet, if the host has that signal.
 
+If work may run longer than about 90 seconds, pass `ttl_s` (or `yap-state --ttl`) so the glass does not fall back to idle mid-task, and keep it alive with a heartbeat every 60–90 seconds. The `yap-state` script does this automatically for `thinking` / `working` (background pulse). Over MCP/REST, re-call `yap_set_state` with the same label, or `POST /v1/state/heartbeat`, on that cadence. Stop heartbeating when you send `done`, `error`, `idle`, or `sleeping`.
+
 Never send `waiting_for_user` as a state. Only `POST /v1/ask` puts a question on the glass.
 
 State text is at most 60 characters. Questions are at most 120. Plain words. No secrets, no message contents, no personal data.
@@ -63,7 +65,7 @@ State text is at most 60 characters. Questions are at most 120. Plain words. No 
 | `POST /v1/ask` | Question. Hint: one press = yes, two presses = no. |
 | `DELETE /v1/questions/:id` while showing | Question closes, glass returns to idle. |
 
-`thinking` and `working` fall back to idle after 120 seconds if nothing newer arrives. A question lives until answered, cancelled, or `expires_in_s` elapses (default 900, max 86400).
+`thinking` and `working` fall back to idle after their TTL if nothing newer arrives. Omit `ttl_s` and the default is 120 seconds; set `ttl_s` on `POST /v1/state` / `yap_set_state` up to 86400. `POST /v1/state/heartbeat` extends the current TTL without changing the text (clients may also re-POST the same state). A question lives until answered, cancelled, or `expires_in_s` elapses (default 900, max 86400).
 
 One press is yes. A second press within 350 ms is no. A long press during the 3 second confirm ring undoes the choice and publishes nothing. Do not tell the person to turn the device — this firmware has no dial.
 
@@ -104,7 +106,8 @@ Register these whether as scripts, REST functions, or MCP:
 | --- | --- |
 | `yap_setup` | `POST /v1/keys` once at install, not during ordinary chat |
 | `yap_pair_device` | `POST /v1/pair` |
-| `yap_set_state` | `POST /v1/state` |
+| `yap_set_state` | `POST /v1/state` (`ttl_s` optional) |
+| `yap_heartbeat` | `POST /v1/state/heartbeat` (optional; or re-POST state) |
 | `yap_ask` | `POST /v1/ask` |
 | `yap_get_answer` | `GET /v1/questions/:request_id` |
 | `yap_get_status` | `GET /v1/status` |
@@ -123,10 +126,10 @@ export YAP_API_KEY=yap_live_…
 scripts/yap-setup "Desk"                          # mint once; print key for the secret store
 scripts/yap-pair K7Q-4MX2                         # pair from the glass code
 scripts/yap-state thinking
-scripts/yap-state working "Writing the report"
+scripts/yap-state --ttl 300 working "Writing the report"   # long task; script pulses ~every 75s
 scripts/yap-ask "Send the weekly report to the team?" '{"action":"send_report","draft_id":"weekly"}'
 scripts/yap-answer <request_id>                   # poll yes/no
-scripts/yap-state done
+scripts/yap-state done                            # stops the pulse
 scripts/yap-state idle
 ```
 

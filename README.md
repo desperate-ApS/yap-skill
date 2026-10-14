@@ -25,13 +25,15 @@ export YAP_API_KEY=yap_live_…   # from the setup response; show only the prefi
 ./scripts/yap-pair K7Q-4MX2
 
 ./scripts/yap-state thinking
-./scripts/yap-state working "Writing the report"
+./scripts/yap-state --ttl 300 working "Writing the report"   # long task; auto-pulse keeps the glass awake
 ./scripts/yap-ask "Send the weekly report?" '{"action":"send_report"}'
 ./scripts/yap-answer <request_id>
 ./scripts/yap-state done
 ```
 
 Never commit `YAP_API_KEY`. Missing env or a down API is silent success for the state/ask/pair/answer scripts (2s timeout).
+
+For long tasks, pass `--ttl` (seconds, max 86400; default when omitted is the API’s 120s). While the state is `thinking` or `working`, `yap-state` heartbeats in the background about every 75 seconds so the display does not fall back to idle. `done` / `error` / `idle` / `sleeping` stop the pulse.
 
 ## Install by host
 
@@ -90,7 +92,7 @@ Same REST bodies as function declarations; bearer key; poll `GET /v1/questions/:
 | --- | --- |
 | `scripts/yap-setup [name]` | `POST /v1/keys` — print key once |
 | `scripts/yap-pair <code>` | `POST /v1/pair` |
-| `scripts/yap-state <state> [text]` | `POST /v1/state` |
+| `scripts/yap-state [--ttl N] <state> [text]` | `POST /v1/state` (optional `ttl_s`; pulses during thinking/working) |
 | `scripts/yap-ask "question" ['{…}']` | `POST /v1/ask` |
 | `scripts/yap-answer <request_id>` | `GET /v1/questions/:id` |
 
