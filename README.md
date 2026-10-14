@@ -1,6 +1,6 @@
 # yap skill
 
-Installable assistant skill for [yap](https://yap-api.desperate.dk) — a desk display that shows task progress and yes/no questions.
+Installable assistant skill for [yap](https://yap.desperate.dk) — a desk display that shows task progress and yes/no questions.
 
 The API and MCP server are already hosted. This repo is only the skill text, shell helpers, and per-host install notes.
 
