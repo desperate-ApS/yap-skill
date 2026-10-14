@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Usage: yap-setup [name]
+# Mint a bot key once (POST /v1/keys). Prints the full response including key.
+# Defaults YAP_API_URL to production. Does not require YAP_API_KEY.
+set -euo pipefail
+api_url="${YAP_API_URL:-https://yap-api.desperate.dk}"
+name="${1:-yap}"
+body=$(node -e 'process.stdout.write(JSON.stringify({ name: process.argv[1] }));' "$name")
+curl --silent --show-error --max-time 2 \
+  -X POST "$api_url/v1/keys" \
+  -H "content-type: application/json" \
+  -d "$body" || true
+echo

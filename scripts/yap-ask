@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Usage: yap-ask "question" ['{"any":"json"}']
+# 2s timeout. Prints the API response. Missing env is silent success.
+set -euo pipefail
+if [[ -z "${YAP_API_URL:-}" || -z "${YAP_API_KEY:-}" ]]; then
+  exit 0
+fi
+if [[ -z "${1:-}" ]]; then
+  exit 0
+fi
+body=$(node -e 'const [question,context]=process.argv.slice(1); const body={question}; if(context) body.context=JSON.parse(context); process.stdout.write(JSON.stringify(body));' "$1" "${2:-}")
+curl --silent --show-error --max-time 2 \
+  -X POST "$YAP_API_URL/v1/ask" \
+  -H "authorization: Bearer $YAP_API_KEY" \
+  -H "content-type: application/json" \
+  -d "$body" || true
+echo

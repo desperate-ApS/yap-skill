@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Usage: yap-state <state> [text]
+# Fire-and-forget with a 2s timeout. Missing env or a down display is not an error.
+set -euo pipefail
+if [[ -z "${YAP_API_URL:-}" || -z "${YAP_API_KEY:-}" ]]; then
+  exit 0
+fi
+if [[ -z "${1:-}" ]]; then
+  exit 0
+fi
+body=$(node -e 'const [state,text]=process.argv.slice(1); const body={state}; if(text) body.text=text; process.stdout.write(JSON.stringify(body));' "$1" "${2:-}")
+curl --silent --show-error --max-time 2 \
+  -X POST "$YAP_API_URL/v1/state" \
+  -H "authorization: Bearer $YAP_API_KEY" \
+  -H "content-type: application/json" \
+  -d "$body" >/dev/null || true

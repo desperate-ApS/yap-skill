@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Usage: yap-pair <code>
+# Pair with the code on the glass (POST /v1/pair). Prints the API response.
+# 2s timeout. Missing env is silent success.
+set -euo pipefail
+if [[ -z "${YAP_API_URL:-}" || -z "${YAP_API_KEY:-}" ]]; then
+  exit 0
+fi
+if [[ -z "${1:-}" ]]; then
+  exit 0
+fi
+body=$(node -e 'process.stdout.write(JSON.stringify({ code: process.argv[1] }));' "$1")
+curl --silent --show-error --max-time 2 \
+  -X POST "$YAP_API_URL/v1/pair" \
+  -H "authorization: Bearer $YAP_API_KEY" \
+  -H "content-type: application/json" \
+  -d "$body" || true
+echo
