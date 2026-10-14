@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# Usage: yap-update
+# At most once per day, fetch/pull this skill repo from GitHub so agents pick up
+# SKILL.md and script changes. Missing git/remote or network errors are silent.
+# Exit 0 always. Prints nothing unless an update was actually pulled.
+set -euo pipefail
+
+stamp_dir="${XDG_CACHE_HOME:-${HOME:-/tmp}/.cache}/yap-skill"
+stamp_file="${stamp_dir}/last-update-check"
+now=$(date +%s)
+day_s=86400
+
+if [[ -f "$stamp_file" ]]; then
+  last=$(cat "$stamp_file" 2>/dev/null || echo 0)
+  if [[ "$last" =~ ^[0-9]+$ ]] && (( now - last < day_s )); then
+    exit 0
+  fi
+fi
+
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+repo_dir=$(CDPATH= cd -- "$script_dir/.." && pwd)
+
+mkdir -p "$stamp_dir"
+# Record the attempt first so a flaky network does not retry every turn.
+echo "$now" >"$stamp_file" 2>/dev/null || true
+
+if ! command -v git >/dev/null 2>&1; then
+  exit 0
+fi
+
+if [[ ! -d "$repo_dir/.git" ]]; then
+  exit 0
+fi
+
+cd "$repo_dir" || exit 0
+
+# Only update a clean checkout tracking the public skill repo.
+if [[ -n "$(git status --porcelain 2>/dev/null || true)" ]]; then
+  exit 0
+fi
+
+remote_url=$(git remote get-url origin 2>/dev/null || true)
+if [[ "$remote_url" != *yap-skill* ]]; then
+  exit 0
+fi
+
+branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)
+if [[ "$branch" != "main" && "$branch" != "master" ]]; then
+  exit 0
+fi
+
+before=$(git rev-parse HEAD 2>/dev/null || true)
+git fetch --quiet origin "$branch" 2>/dev/null || exit 0
+git merge --ff-only --quiet "origin/$branch" 2>/dev/null || exit 0
+after=$(git rev-parse HEAD 2>/dev/null || true)
+
+if [[ -n "$before" && -n "$after" && "$before" != "$after" ]]; then
+  echo "yap-skill updated: ${before:0:7} → ${after:0:7}"
+fi
+
+exit 0

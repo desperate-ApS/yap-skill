@@ -17,4 +17,4 @@
 }
 ```
 
-4. Optionally also install this skill so the model follows state/ask cadence. Answer path: poll with `yap_get_answer`.
+4. Optionally also install this skill so the model follows state/ask cadence. Prefer a git clone + symlink so `scripts/yap-update` can pull skill updates about once a day. Answer path: poll with `yap_get_answer`.

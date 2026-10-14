@@ -95,5 +95,8 @@ Same REST bodies as function declarations; bearer key; poll `GET /v1/questions/:
 | `scripts/yap-state [--ttl N] <state> [text]` | `POST /v1/state` (optional `ttl_s`; pulses during thinking/working) |
 | `scripts/yap-ask "question" ['{…}']` | `POST /v1/ask` |
 | `scripts/yap-answer <request_id>` | `GET /v1/questions/:id` |
+| `scripts/yap-update` | Once per day, `git pull --ff-only` this skill from GitHub (silent if nothing to do) |
 
-Requires `curl` and `node` for JSON bodies.
+Requires `curl` and `node` for JSON bodies. `yap-update` also needs `git` and a clean clone on `main`.
+
+Agents following [`SKILL.md`](SKILL.md) should run `yap-update` about once a day when using yap so skill/script changes land without a manual reinstall.
