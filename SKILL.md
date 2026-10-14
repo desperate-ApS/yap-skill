@@ -1,6 +1,6 @@
 ---
 name: yap
-description: Drive a yap desk display — report task progress and ask yes/no questions on the glass. Use when YAP_API_URL and YAP_API_KEY are set, when MCP points at yap-api, or when the person asks to set up or pair a yap device.
+description: Mirror every task onto the yap desk display — send thinking/working/done states and yes/no asks to the glass. Use whenever you are working on anything for the person if yap is installed (YAP_API_URL and YAP_API_KEY, or MCP to yap-api), and when they ask to set up or pair a device.
 ---
 
 # yap
@@ -18,6 +18,8 @@ Environment when using the scripts:
 
 REST and MCP use the same key: `Authorization: Bearer <key>`.
 
+If this skill is installed and the key (or MCP) is configured, **every task you work on must update the glass**. Do not wait for the person to mention yap. Coding, research, writing, edits, tool runs — if you are working, the display shows it.
+
 If the key is missing or the API is down, do not fail the person's task. The scripts exit 0 and time out at 2 seconds. Stay quiet about the display unless they brought yap up themselves.
 
 ## Install (once)
@@ -34,14 +36,16 @@ When the person has a code from the glass (`XXX-XXXX`, seven characters, upperca
 
 `yap_get_status` / `GET /v1/status` and `yap_list_devices` / `GET /v1/devices` list paired devices and whether each is online. Unpair with `DELETE /v1/devices/:id` using an id from that list.
 
-## During a task
+## During every task
 
-Send 3–6 updates, not one per tool call:
+Whenever you start work for the person, drive the glass for that run. This is not optional when yap is configured. Do it in parallel with the real work — fire-and-forget, never block on it.
 
-1. `thinking` when the task starts (optional short text).
-2. `working` with a short label at real milestones ("Writing the report"). Text is required.
-3. `done` or `error` when it finishes (optional text).
-4. `idle` when the assistant goes quiet, if the host has that signal.
+Send 3–6 updates per task, not one per tool call:
+
+1. `thinking` as soon as the task starts (optional short text).
+2. `working` with a short label at real milestones ("Writing the report", "Fixing the tests"). Text is required. Prefer `working` over staying on `thinking` once you know what you are doing.
+3. `done` or `error` when that task finishes (optional text).
+4. `idle` when you go quiet, if the host has that signal.
 
 Never send `waiting_for_user` as a state. Only `POST /v1/ask` puts a question on the glass.
 
