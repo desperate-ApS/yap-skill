@@ -137,10 +137,11 @@ yap_http_start_worker() {
   disown "$pid" 2>/dev/null || true
 }
 
-# yap_http_call quiet|print METHOD /path [json_body] slot
+# yap_http_call quiet|print|once METHOD /path [json_body] slot
 # quiet: do not wait. The attempt and any retries run in the background.
 # print: one foreground attempt. On 2xx or 4xx, print the body. On timeout,
 #        network error, or 5xx, retry in the background and print nothing.
+# once: one foreground attempt, print the body, do not retry. Sets YAP_HTTP_CODE.
 yap_http_call() {
   local mode="$1"
   local method="$2"
@@ -167,7 +168,7 @@ yap_http_call() {
   printf '%s' "$path" >"${slot_dir}/path"
   printf '%s' "$body" >"${slot_dir}/body"
   printf '%s' "$YAP_API_KEY" >"${slot_dir}/key"
-  chmod 600 "${slot_dir}/key" 2>/dev/null || true
+  chmod 600 "${slot_dir}/key" "${slot_dir}/body" 2>/dev/null || true
   printf '%s' "$gen" >"${slot_dir}/gen"
   rm -f "${slot_dir}/response"
 
@@ -194,10 +195,23 @@ yap_http_call() {
   fi
   code=$(curl "${curl_args[@]}" 2>/dev/null || true)
   [[ -n "$code" ]] || code="000"
+  YAP_HTTP_CODE="$code"
+  printf '%s' "$code" >"${slot_dir}/code"
+
+  if [[ "$mode" == "once" ]]; then
+    if [[ -s "$tmp" ]]; then
+      cat "$tmp"
+      echo
+    fi
+    rm -f "$tmp"
+    return 0
+  fi
 
   if [[ "$code" =~ ^2 || "$code" =~ ^4 ]]; then
-    cat "$tmp"
-    echo
+    if [[ -s "$tmp" ]]; then
+      cat "$tmp"
+      echo
+    fi
     rm -f "$tmp"
     return 0
   fi

@@ -7,4 +7,4 @@
 5. Show only `prefix` in chat. Never commit the key.
 6. Pair with the glass code via `yap-pair` / `yap_pair_device`.
 7. If the key is gone after a reset, say so. Mint a new key, save it in the host secret and in `~/.config/yap/env`, and pair the glass again.
-8. Answer path: poll with `yap-answer` / `yap_get_answer`.
+8. Answer path. If Grok can wake on an HTTPS POST, register that URL with `yap-webhook ensure <url>`, store the secret with the API key, and check `X-Yap-Signature` with `yap-webhook verify` before acting. On later runs, register again when `GET /v1/webhook` is not configured. If there is no webhook, run `yap-answer <request_id>` and let it poll every 5 seconds until answered, expired, or cancelled.

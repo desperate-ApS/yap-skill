@@ -27,7 +27,7 @@ cd yap-skill
 ./scripts/yap-state thinking
 ./scripts/yap-state --ttl 300 working "Writing the report"   # long task; auto-pulse keeps the glass awake
 ./scripts/yap-ask "Send the weekly report?" '{"action":"send_report"}'
-./scripts/yap-answer <request_id>
+./scripts/yap-answer <request_id>                 # every 5s until answered, expired, or cancelled
 ./scripts/yap-state done
 ```
 
@@ -78,7 +78,7 @@ Set `YAP_API_URL` and `YAP_API_KEY`, or configure MCP the same way as Cursor. De
 
 ### Grok / xAI
 
-Install `SKILL.md` (+ `scripts/` if the host can run them). Put `YAP_API_URL` and `YAP_API_KEY` in the skill environment. Poll for answers. Details: [`hosts/grok.md`](hosts/grok.md).
+Install `SKILL.md` (+ `scripts/` if the host can run them). Put `YAP_API_URL` and `YAP_API_KEY` in the host secret and in `~/.config/yap/env`. Register a wake webhook when the host can receive one; otherwise `yap-answer` polls every 5 seconds. Details: [`hosts/grok.md`](hosts/grok.md).
 
 ### ChatGPT
 
@@ -86,7 +86,7 @@ Point MCP at `https://yap-api.desperate.dk/mcp` with a bearer key, or register f
 
 ### Gemini
 
-Same REST bodies as function declarations; bearer key; poll `GET /v1/questions/:id`. Details: [`hosts/gemini.md`](hosts/gemini.md).
+Same REST bodies as function declarations; bearer key. Webhook when the host can receive one, otherwise poll `GET /v1/questions/:id` every 5 seconds. Details: [`hosts/gemini.md`](hosts/gemini.md).
 
 ## Scripts
 
@@ -97,7 +97,9 @@ Same REST bodies as function declarations; bearer key; poll `GET /v1/questions/:
 | `scripts/yap-task "label" -- command` | `thinking`, then `done` or `error` from the command's exit code |
 | `scripts/yap-state [--ttl N] <state> [text]` | `POST /v1/state` (optional `ttl_s`; pulses during thinking/working) |
 | `scripts/yap-ask "question" ['{…}']` | `POST /v1/ask` |
-| `scripts/yap-answer <request_id>` | `GET /v1/questions/:id` |
+| `scripts/yap-answer <request_id>` | Poll `GET /v1/questions/:id` every 5 seconds until answered, expired, or cancelled |
+| `scripts/yap-webhook register\|ensure <url>` | `PUT /v1/webhook`; secret stays in the config file |
+| `scripts/yap-webhook verify` | Check `X-Yap-Signature` on a raw body |
 | `scripts/yap-update` | Once per day, `git pull --ff-only` this skill from GitHub (silent if nothing to do) |
 
 Requires `curl` and `node` for JSON bodies. `yap-update` also needs `git` and a clean clone on `main`.

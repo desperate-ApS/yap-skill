@@ -5,4 +5,4 @@
 3. Show only `prefix`. Never commit the key.
 4. Register function declarations with the same REST bodies as in `SKILL.md` (`/v1/keys`, `/v1/pair`, `/v1/state`, `/v1/ask`, `/v1/questions/:id`, `/v1/status`, `/v1/devices`).
 5. If the secret is gone, say so, mint a new key, save it again, and pair the glass again.
-6. Answer path: poll `GET /v1/questions/:request_id`.
+6. Answer path. If the tool runtime can take an inbound POST, register it with `yap-webhook ensure <url>` and verify `X-Yap-Signature` before acting. Otherwise poll `GET /v1/questions/:request_id` every 5 seconds until answered, expired, or cancelled. `yap-answer <request_id>` does that.

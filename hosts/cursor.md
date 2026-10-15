@@ -23,4 +23,4 @@
 
 5. Install this skill so the model follows state/ask cadence. Prefer a git clone + symlink so `scripts/yap-update` can pull skill updates about once a day.
 6. If the key is gone from both the MCP config and `~/.config/yap/env`, say so, mint a new key, save it in both places, and pair the glass again.
-7. Answer path: poll with `yap_get_answer`.
+7. Answer path. If a Cursor automation can wake the agent from an HTTPS POST, register that URL with `yap-webhook ensure <url>` and check `X-Yap-Signature` with `yap-webhook verify` before acting. If there is no such URL, run `yap-answer <request_id>`. It polls every 5 seconds until the question is answered, expired, or cancelled. Do the same at the start of a later run when a question is still pending.

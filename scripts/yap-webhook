@@ -1,0 +1,126 @@
+#!/usr/bin/env bash
+# Usage:
+#   yap-webhook register <url>     PUT /v1/webhook and store the secret beside the API key
+#   yap-webhook ensure <url>       register when GET /v1/webhook is missing or a different URL
+#   yap-webhook status             GET /v1/webhook
+#   yap-webhook verify [signature] HMAC-check a raw body on stdin (X-Yap-Signature)
+# The secret is never printed. A missing API key is reported and exits 0,
+# except verify, which exits 1 when the signature does not match.
+set -euo pipefail
+
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+# shellcheck disable=SC1091
+source "${script_dir}/lib/yap-env.sh"
+# shellcheck disable=SC1091
+source "${script_dir}/lib/yap-http.sh"
+
+usage() {
+  echo 'usage: yap-webhook register|ensure <url> | status | verify [signature]' >&2
+}
+
+cmd="${1:-}"
+shift || true
+
+case "$cmd" in
+  register|ensure|status)
+    if ! yap_prepare; then
+      exit 0
+    fi
+    ;;
+  verify)
+    yap_load_config || true
+    ;;
+  *)
+    usage
+    exit 2
+    ;;
+esac
+
+register_url() {
+  local url="$1"
+  if [[ -z "$url" ]]; then
+    usage
+    exit 2
+  fi
+  if [[ -z "${YAP_WEBHOOK_SECRET:-}" ]]; then
+    YAP_WEBHOOK_SECRET=$(node -e 'process.stdout.write(require("crypto").randomBytes(32).toString("hex"))')
+    export YAP_WEBHOOK_SECRET
+  fi
+  YAP_WEBHOOK_URL="$url"
+  export YAP_WEBHOOK_URL
+  yap_write_config || true
+  local body
+  body=$(
+    node -e '
+      process.stdout.write(JSON.stringify({
+        url: process.env.YAP_WEBHOOK_URL,
+        secret: process.env.YAP_WEBHOOK_SECRET,
+      }));
+    '
+  )
+  yap_http_call print PUT /v1/webhook "$body" webhook
+}
+
+case "$cmd" in
+  register)
+    register_url "${1:-}"
+    ;;
+  status)
+    yap_http_call once GET /v1/webhook "" webhook-status
+    ;;
+  ensure)
+    url="${1:-}"
+    if [[ -z "$url" ]]; then
+      usage
+      exit 2
+    fi
+    view=$(mktemp)
+    yap_http_call once GET /v1/webhook "" webhook-status >"$view"
+    code="${YAP_HTTP_CODE:-000}"
+    match=$(
+      node -e '
+        const fs = require("fs");
+        const want = process.argv[1];
+        try {
+          const body = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+          if (body && body.configured === true && body.url === want) process.stdout.write("yes");
+        } catch (e) {}
+      ' "$url" "$view"
+    )
+    if [[ "$code" =~ ^2 && "$match" == "yes" ]]; then
+      cat "$view"
+      echo
+      rm -f "$view"
+      exit 0
+    fi
+    rm -f "$view"
+    register_url "$url"
+    ;;
+  verify)
+    signature="${1:-${YAP_WEBHOOK_SIGNATURE:-}}"
+    if [[ -z "${YAP_WEBHOOK_SECRET:-}" || -z "$signature" ]]; then
+      echo "yap: webhook signature check failed" >&2
+      exit 1
+    fi
+    export YAP_WEBHOOK_SIGNATURE="$signature"
+    tmp=$(mktemp)
+    cat >"$tmp"
+    if ! node -e '
+      const crypto = require("crypto");
+      const fs = require("fs");
+      const body = fs.readFileSync(process.argv[1]);
+      const secret = process.env.YAP_WEBHOOK_SECRET || "";
+      const got = process.env.YAP_WEBHOOK_SIGNATURE || "";
+      const expected = Buffer.from("sha256=" + crypto.createHmac("sha256", secret).update(body).digest("hex"));
+      const actual = Buffer.from(got);
+      if (expected.length !== actual.length || !crypto.timingSafeEqual(expected, actual)) process.exit(1);
+    ' "$tmp"; then
+      rm -f "$tmp"
+      echo "yap: webhook signature check failed" >&2
+      exit 1
+    fi
+    cat "$tmp"
+    echo
+    rm -f "$tmp"
+    ;;
+esac

@@ -110,14 +110,18 @@ The response is `{ "request_id", "expires_at" }`. A second question while one is
 
 ## How the answer comes back
 
-Poll after `yap_ask`. Read `yap_get_answer` / `GET /v1/questions/:request_id`:
+If this host can receive an inbound POST, register that URL with `yap-webhook ensure <url>` (or `yap_set_webhook`). The webhook secret is stored next to the API key, in the same config file, not in this repo. On a later run, `GET /v1/webhook`. If `configured` is not true, or the URL differs, register again.
 
-- `pending` and not `queued`: on the glass.
-- `pending` and `queued`: waiting behind another question.
-- `answered`: `answer` is `yes` or `no`. Continue from `context`.
-- `expired` or `cancelled`: do not take the action. Treat as no.
+A delivery is JSON with `answer`, `request_id`, `context`, and `prompt`. Before acting, check `X-Yap-Signature` (`sha256=` plus HMAC-SHA256 of the raw body) with `yap-webhook verify`. A bad signature is not an answer.
 
-Do not block the person's task on the button. If this run can wait a few seconds, poll a handful of times. Otherwise tell them the question is on the glass, keep the `request_id`, and on the next run call `yap_get_answer` or `yap_get_status` before doing more work.
+If this host has no webhook, do not stop after a few tries. After `yap_ask`, run `yap-answer <request_id>`. It calls `GET /v1/questions/:request_id` every 5 seconds until `answered`, `expired`, or `cancelled`. At the start of a later run, do the same for a question that is still pending.
+
+- `pending` and not `queued`: on the glass. Keep polling.
+- `pending` and `queued`: waiting behind another question. Keep polling.
+- `answered` and `yes`: tell the person, then do what `context` says.
+- `answered` and `no`, or `expired`, or `cancelled`: tell the person, and do not take the action.
+
+A webhook delivery follows the same yes / no rule. `no`, `expired`, and `cancelled` do not take the action.
 
 ## Tools
 
@@ -133,8 +137,11 @@ Register these whether as scripts, REST functions, or MCP:
 | `yap_get_answer` | `GET /v1/questions/:request_id` |
 | `yap_get_status` | `GET /v1/status` |
 | `yap_list_devices` | `GET /v1/devices` |
+| `yap_set_webhook` | `PUT /v1/webhook` `{ "url", "secret" }` |
+| `yap_clear_webhook` | `DELETE /v1/webhook` |
+| `yap_test_webhook` | `POST /v1/webhook/test` |
 
-MCP clients get the last six at `POST /mcp`. `yap_setup` is REST only.
+MCP at `POST /mcp` exposes the calls above except `yap_setup`. `GET /v1/webhook` is REST, used by `yap-webhook status`.
 
 ## Scripts
 
@@ -151,7 +158,8 @@ scripts/yap-task "Writing the report" -- make test   # thinking, then done or er
 scripts/yap-state thinking                        # start, before other work
 scripts/yap-state --ttl 300 working "Writing the report"   # milestone; script pulses ~every 75s
 scripts/yap-ask "Send the weekly report to the team?" '{"action":"send_report","draft_id":"weekly"}'
-scripts/yap-answer <request_id>                   # poll yes/no
+scripts/yap-webhook ensure "https://agent.example/yap"   # when the host can receive POST
+scripts/yap-answer <request_id>                   # poll every 5s until answered, expired, or cancelled
 scripts/yap-state done                            # stops the pulse
 scripts/yap-state idle
 ```
