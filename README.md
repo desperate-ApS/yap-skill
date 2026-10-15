@@ -24,12 +24,15 @@ export YAP_API_KEY=yap_live_…   # from the setup response; show only the prefi
 # Pair with the code on the glass (XXX-XXXX)
 ./scripts/yap-pair K7Q-4MX2
 
+./scripts/yap-task "Writing the report" -- make test   # thinking, then done or error
 ./scripts/yap-state thinking
 ./scripts/yap-state --ttl 300 working "Writing the report"   # long task; auto-pulse keeps the glass awake
 ./scripts/yap-ask "Send the weekly report?" '{"action":"send_report"}'
 ./scripts/yap-answer <request_id>
 ./scripts/yap-state done
 ```
+
+On every task the glass gets a start (`thinking`), milestones (`working` with a short label), and a finish (`done` or `error`). `yap-task` does that around one command and does not wait on the API.
 
 Never commit `YAP_API_KEY`. Missing env or a down API is silent success for the state/ask/pair/answer scripts (2s timeout).
 
@@ -92,6 +95,7 @@ Same REST bodies as function declarations; bearer key; poll `GET /v1/questions/:
 | --- | --- |
 | `scripts/yap-setup [name]` | `POST /v1/keys` — print key once |
 | `scripts/yap-pair <code>` | `POST /v1/pair` |
+| `scripts/yap-task "label" -- command` | `thinking`, then `done` or `error` from the command's exit code |
 | `scripts/yap-state [--ttl N] <state> [text]` | `POST /v1/state` (optional `ttl_s`; pulses during thinking/working) |
 | `scripts/yap-ask "question" ['{…}']` | `POST /v1/ask` |
 | `scripts/yap-answer <request_id>` | `GET /v1/questions/:id` |

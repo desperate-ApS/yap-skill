@@ -1,9 +1,11 @@
 ---
 name: yap
-description: Mirror every task onto the yap desk display — send thinking/working/done states and yes/no asks to the glass. Use whenever you are working on anything for the person if yap is installed (YAP_API_URL and YAP_API_KEY, or MCP to yap-api), and when they ask to set up or pair a device.
+description: Send thinking to the yap desk display before any other work, then working and done, on every task. Required whenever this skill is installed and yap is configured (YAP_API_URL and YAP_API_KEY, or MCP). Also use it to set up or pair a device, and for yes/no asks. Do not wait for the person to mention yap.
 ---
 
 # yap
+
+Send `thinking` before any other work on a task.
 
 yap is a small round desk display. It shows what you are doing and lets the person answer yes/no with one button. Firmware and the HTTP API already exist. You only call the API.
 
@@ -48,10 +50,18 @@ Whenever you start work for the person, drive the glass for that run. This is no
 
 Send 3–6 updates per task, not one per tool call:
 
-1. `thinking` as soon as the task starts (optional short text).
+1. `thinking` as soon as the task starts, before any tool call or edit (optional short text).
 2. `working` with a short label at real milestones ("Writing the report", "Fixing the tests"). Text is required. Prefer `working` over staying on `thinking` once you know what you are doing.
 3. `done` or `error` when that task finishes (optional text).
 4. `idle` when you go quiet, if the host has that signal.
+
+### Checklist
+
+- **Start.** `thinking` before any other work.
+- **Milestone.** `working` with a short label once the work is clear, and again when the work changes.
+- **Finish.** `done` when it succeeds, `error` when it fails.
+
+For a shell command, `scripts/yap-task "Writing the report" -- command` sends `thinking` first and `done` or `error` from the exit code. It does not wait on the API. The label is optional: `scripts/yap-task -- command`.
 
 If work may run longer than about 90 seconds, pass `ttl_s` (or `yap-state --ttl`) so the glass does not fall back to idle mid-task, and keep it alive with a heartbeat every 60–90 seconds. The `yap-state` script does this automatically for `thinking` / `working` (background pulse). Over MCP/REST, re-call `yap_set_state` with the same label, or `POST /v1/state/heartbeat`, on that cadence. Stop heartbeating when you send `done`, `error`, `idle`, or `sleeping`.
 
@@ -132,8 +142,9 @@ export YAP_API_KEY=yap_live_…
 scripts/yap-update                                # once/day pull of this skill (optional, silent)
 scripts/yap-setup "Desk"                          # mint once; print key for the secret store
 scripts/yap-pair K7Q-4MX2                         # pair from the glass code
-scripts/yap-state thinking
-scripts/yap-state --ttl 300 working "Writing the report"   # long task; script pulses ~every 75s
+scripts/yap-task "Writing the report" -- make test   # thinking, then done or error
+scripts/yap-state thinking                        # start, before other work
+scripts/yap-state --ttl 300 working "Writing the report"   # milestone; script pulses ~every 75s
 scripts/yap-ask "Send the weekly report to the team?" '{"action":"send_report","draft_id":"weekly"}'
 scripts/yap-answer <request_id>                   # poll yes/no
 scripts/yap-state done                            # stops the pulse

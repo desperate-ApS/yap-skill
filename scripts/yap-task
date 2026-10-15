@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# Usage: yap-task "label" -- command [args...]
+# Posts thinking before the command and done or error from the exit code.
+# State posts run in the background so the API cannot block the command.
+set -euo pipefail
+
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+state_bin="${script_dir}/yap-state"
+
+label=""
+if [[ $# -gt 0 && "$1" != "--" ]]; then
+  label="$1"
+  shift
+fi
+if [[ "${1:-}" != "--" || $# -lt 2 ]]; then
+  echo 'usage: yap-task "label" -- command [args...]' >&2
+  exit 2
+fi
+shift
+
+post() {
+  if [[ -n "$label" ]]; then
+    "$state_bin" "$1" "$label" >/dev/null 2>&1 &
+  else
+    "$state_bin" "$1" >/dev/null 2>&1 &
+  fi
+  disown "$!" 2>/dev/null || true
+}
+
+post thinking
+
+set +e
+"$@"
+code=$?
+set -e
+
+if [[ "$code" -eq 0 ]]; then
+  post done
+else
+  post error
+fi
+
+exit "$code"
