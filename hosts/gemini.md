@@ -1,6 +1,8 @@
 # Gemini
 
 1. Mint a key: `POST https://yap-api.desperate.dk/v1/keys` with `{ "name": "Gemini" }`, or run `scripts/yap-setup "Gemini"`.
-2. Store `key` as a bearer secret. Show only `prefix`.
-3. Register function declarations with the same REST bodies as in `SKILL.md` (`/v1/keys`, `/v1/pair`, `/v1/state`, `/v1/ask`, `/v1/questions/:id`, `/v1/status`, `/v1/devices`).
-4. Answer path: poll `GET /v1/questions/:request_id`.
+2. Store the key in the tool's secret (the Gemini or Vertex environment that survives a skill reinstall). If scripts run on a machine, `yap-setup` also writes `${XDG_CONFIG_HOME:-$HOME/.config}/yap/env` (mode 600). Do not put the key in the skill repo, in `~/.yap/env`, or in `/tmp`.
+3. Show only `prefix`. Never commit the key.
+4. Register function declarations with the same REST bodies as in `SKILL.md` (`/v1/keys`, `/v1/pair`, `/v1/state`, `/v1/ask`, `/v1/questions/:id`, `/v1/status`, `/v1/devices`).
+5. If the secret is gone, say so, mint a new key, save it again, and pair the glass again.
+6. Answer path: poll `GET /v1/questions/:request_id`.

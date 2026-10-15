@@ -16,10 +16,9 @@ Behavior for the model lives in [`SKILL.md`](SKILL.md). Host wrappers: [`hosts/`
 git clone https://github.com/desperate-ApS/yap-skill.git
 cd yap-skill
 
-# Mint a key once (prints plaintext once — store it as a secret)
+# Mint a key once. Prints the key, and writes it to ~/.config/yap/env (mode 600).
 ./scripts/yap-setup "Desk"
-export YAP_API_URL=https://yap-api.desperate.dk
-export YAP_API_KEY=yap_live_…   # from the setup response; show only the prefix in chat
+# Scripts read that file when YAP_API_KEY is unset. Also store the key in the host secret.
 
 # Pair with the code on the glass (XXX-XXXX)
 ./scripts/yap-pair K7Q-4MX2
@@ -34,7 +33,7 @@ export YAP_API_KEY=yap_live_…   # from the setup response; show only the prefi
 
 On every task the glass gets a start (`thinking`), milestones (`working` with a short label), and a finish (`done` or `error`). `yap-task` does that around one command and does not wait on the API.
 
-Never commit `YAP_API_KEY`. Missing env is silent success for the state/ask/pair/answer scripts. A timeout, network error, or 5xx is retried in the background so a down API does not block the task or leave the glass on a stale state. 4xx is not retried.
+Never commit `YAP_API_KEY`. `yap-setup` stores it in `${XDG_CONFIG_HOME:-$HOME/.config}/yap/env`, outside this repo. A missing key prints `yap: API key missing.` and exits 0. A timeout, network error, or 5xx is retried in the background so a down API does not block the task or leave the glass on a stale state. 4xx is not retried. Minting a key does not retry.
 
 For long tasks, pass `--ttl` (seconds, max 86400; default when omitted is the API’s 120s). While the state is `thinking` or `working`, `yap-state` heartbeats in the background about every 75 seconds so the display does not fall back to idle. `done` / `error` / `idle` / `sleeping` stop the pulse.
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Usage: yap-state [--ttl <seconds>] <state> [text]
-# Returns immediately. Timeouts, network errors, and 5xx retry in the background.
+# Returns immediately. Reads the key from the environment or ~/.config/yap/env.
+# Timeouts, network errors, and 5xx retry in the background.
 # A newer state replaces an older one still retrying. 4xx is not retried.
 # For thinking/working, starts a background pulse (~75s) so the glass does not
 # auto-idle during long tasks. done/error/idle/sleeping stop the pulse.
@@ -8,9 +9,11 @@ set -euo pipefail
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 # shellcheck disable=SC1091
+source "${script_dir}/lib/yap-env.sh"
+# shellcheck disable=SC1091
 source "${script_dir}/lib/yap-http.sh"
 
-if [[ -z "${YAP_API_URL:-}" || -z "${YAP_API_KEY:-}" ]]; then
+if ! yap_prepare; then
   exit 0
 fi
 

@@ -1,13 +1,47 @@
 #!/usr/bin/env bash
 # Usage: yap-setup [name]
 # Mint a bot key once (POST /v1/keys). Prints the full response including key.
-# Defaults YAP_API_URL to production. Does not require YAP_API_KEY.
+# On success, writes the key to ${XDG_CONFIG_HOME:-$HOME/.config}/yap/env (mode 600).
+# Does not retry: a second mint would create another key.
 set -euo pipefail
+
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+# shellcheck disable=SC1091
+source "${script_dir}/lib/yap-env.sh"
+
+yap_load_config
 api_url="${YAP_API_URL:-https://yap-api.desperate.dk}"
 name="${1:-yap}"
 body=$(node -e 'process.stdout.write(JSON.stringify({ name: process.argv[1] }));' "$name")
-curl --silent --show-error --max-time 2 \
-  -X POST "$api_url/v1/keys" \
-  -H "content-type: application/json" \
-  -d "$body" || true
+tmp=$(mktemp)
+code=$(
+  curl --silent --show-error \
+    --connect-timeout "${YAP_HTTP_CONNECT_TIMEOUT:-5}" \
+    --max-time "${YAP_HTTP_MAX_TIME:-10}" \
+    -o "$tmp" -w "%{http_code}" \
+    -X POST "${api_url%/}/v1/keys" \
+    -H "content-type: application/json" \
+    -d "$body" || true
+)
+[[ -n "$code" ]] || code="000"
+cat "$tmp"
 echo
+
+if [[ "$code" =~ ^2 ]]; then
+  key=$(
+    node -e '
+      const fs = require("fs");
+      try {
+        const body = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+        if (body && typeof body.key === "string" && body.key) process.stdout.write(body.key);
+      } catch (e) {}
+    ' "$tmp"
+  )
+  if [[ -n "$key" ]]; then
+    YAP_API_URL="$api_url"
+    YAP_API_KEY="$key"
+    export YAP_API_URL YAP_API_KEY
+    yap_write_config || true
+  fi
+fi
+rm -f "$tmp"

@@ -22,7 +22,9 @@ REST and MCP use the same key: `Authorization: Bearer <key>`.
 
 If this skill is installed and the key (or MCP) is configured, **every task you work on must update the glass**. Do not wait for the person to mention yap. Coding, research, writing, edits, tool runs — if you are working, the display shows it.
 
-If the key is missing or the API is down, do not fail the person's task. The scripts exit 0. Timeouts, network errors, and HTTP 5xx retry in the background, so stay quiet about the display unless they brought yap up themselves.
+If the API is down, do not fail the person's task. The scripts exit 0. Timeouts, network errors, and HTTP 5xx retry in the background, so stay quiet about a down display unless they brought yap up themselves.
+
+If the API key is not in the environment and not in `${XDG_CONFIG_HOME:-$HOME/.config}/yap/env`, tell the person. Mint a new key, save it there and in the host secret store, and pair the glass again. Do not pretend the glass is updating. The scripts print `yap: API key missing.` and exit 0.
 
 ## Keep this skill current
 
@@ -33,8 +35,9 @@ Do not block the person's task on the update. Skip if the tree is dirty, not a g
 ## Install (once)
 
 1. Call `yap_setup` / `POST /v1/keys` with `{ "name": "<assistant or person name>" }`.
-2. Store `key` in the host secret store. Show the `prefix` only. Do not log the full key, and do not put it in a skill file that gets committed.
-3. Ten mints per IP per hour, then `429` with `Retry-After`.
+2. Store `key` in the host secret store and in `${XDG_CONFIG_HOME:-$HOME/.config}/yap/env`. `yap-setup` writes that file (mode 600). Show the `prefix` only. Do not log the full key, and do not put it in a file inside this repo. Do not use `~/.yap/env` or `/tmp`. The config file sits outside the skill directory, so deleting the checkout does not delete the key.
+3. On every task, read the key from the environment or that file. Scripts do this themselves. If both are empty, tell the person, mint again, save it again, and pair the glass.
+4. Ten mints per IP per hour, then `429` with `Retry-After`.
 
 There is no admin token on this path. Host-specific install notes: `hosts/`.
 
@@ -135,7 +138,7 @@ MCP clients get the last six at `POST /mcp`. `yap_setup` is REST only.
 
 ## Scripts
 
-Helpers under `scripts/` (missing env is silent success except `yap-setup`; timeouts and 5xx retry in the background):
+Helpers under `scripts/` (a missing key prints `yap: API key missing.` and exits 0; timeouts and 5xx retry in the background; `yap-setup` does not retry):
 
 ```bash
 export YAP_API_URL=https://yap-api.desperate.dk
