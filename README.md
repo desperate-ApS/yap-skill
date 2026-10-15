@@ -34,7 +34,7 @@ export YAP_API_KEY=yap_live_…   # from the setup response; show only the prefi
 
 On every task the glass gets a start (`thinking`), milestones (`working` with a short label), and a finish (`done` or `error`). `yap-task` does that around one command and does not wait on the API.
 
-Never commit `YAP_API_KEY`. Missing env or a down API is silent success for the state/ask/pair/answer scripts (2s timeout).
+Never commit `YAP_API_KEY`. Missing env is silent success for the state/ask/pair/answer scripts. A timeout, network error, or 5xx is retried in the background so a down API does not block the task or leave the glass on a stale state. 4xx is not retried.
 
 For long tasks, pass `--ttl` (seconds, max 86400; default when omitted is the API’s 120s). While the state is `thinking` or `working`, `yap-state` heartbeats in the background about every 75 seconds so the display does not fall back to idle. `done` / `error` / `idle` / `sleeping` stop the pulse.
 

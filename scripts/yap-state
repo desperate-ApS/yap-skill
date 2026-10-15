@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
 # Usage: yap-state [--ttl <seconds>] <state> [text]
-# Fire-and-forget with a 2s timeout. Missing env or a down display is not an error.
+# Returns immediately. Timeouts, network errors, and 5xx retry in the background.
+# A newer state replaces an older one still retrying. 4xx is not retried.
 # For thinking/working, starts a background pulse (~75s) so the glass does not
 # auto-idle during long tasks. done/error/idle/sleeping stop the pulse.
 set -euo pipefail
+
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+# shellcheck disable=SC1091
+source "${script_dir}/lib/yap-http.sh"
 
 if [[ -z "${YAP_API_URL:-}" || -z "${YAP_API_KEY:-}" ]]; then
   exit 0
@@ -91,12 +96,7 @@ stop_pulse() {
 }
 
 post_state() {
-  local payload="$1"
-  curl --silent --show-error --max-time 2 \
-    -X POST "$YAP_API_URL/v1/state" \
-    -H "authorization: Bearer $YAP_API_KEY" \
-    -H "content-type: application/json" \
-    -d "$payload" >/dev/null || true
+  yap_http_call quiet POST /v1/state "$1" state
 }
 
 start_pulse() {
@@ -114,7 +114,7 @@ start_pulse() {
     echo "$$" >"$pid_file"
     while true; do
       sleep "$interval_s" || exit 0
-      code=$(curl --silent --show-error --max-time 2 \
+      code=$(curl --silent --show-error --connect-timeout 5 --max-time 10 \
         -o /dev/null -w "%{http_code}" \
         -X POST "$api_url/v1/state/heartbeat" \
         -H "authorization: Bearer $api_key" \
@@ -122,7 +122,7 @@ start_pulse() {
         -d "{}" 2>/dev/null || echo "000")
       if [[ "$code" != "200" && "$code" != "204" ]]; then
         if [[ -f "$body_file" ]]; then
-          curl --silent --show-error --max-time 2 \
+          curl --silent --show-error --connect-timeout 5 --max-time 10 \
             -X POST "$api_url/v1/state" \
             -H "authorization: Bearer $api_key" \
             -H "content-type: application/json" \

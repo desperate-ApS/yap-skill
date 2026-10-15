@@ -22,7 +22,7 @@ REST and MCP use the same key: `Authorization: Bearer <key>`.
 
 If this skill is installed and the key (or MCP) is configured, **every task you work on must update the glass**. Do not wait for the person to mention yap. Coding, research, writing, edits, tool runs — if you are working, the display shows it.
 
-If the key is missing or the API is down, do not fail the person's task. The scripts exit 0 and time out at 2 seconds. Stay quiet about the display unless they brought yap up themselves.
+If the key is missing or the API is down, do not fail the person's task. The scripts exit 0. Timeouts, network errors, and HTTP 5xx retry in the background, so stay quiet about the display unless they brought yap up themselves.
 
 ## Keep this skill current
 
@@ -87,6 +87,8 @@ One press is yes. A second press within 350 ms is no. A long press during the 3 
 
 A state update while a question is on screen returns `409 question_pending`. Wait, cancel, or let it expire. Publishes are coalesced for 300 ms. More than a burst of 10, refilled at 1 per second, returns `429`.
 
+Timeouts, network errors, and HTTP 5xx retry in the background (1s, then 2s, 4s, 8s, up to 32s) until a response arrives. The script does not wait on those retries. HTTP 4xx, including 400, 401, 409, and 429, is not retried. A newer `yap-state` replaces an older state that is still retrying, so the glass does not settle on a stale label. One attempt uses a connect timeout of 5 seconds.
+
 ## Asking
 
 Use ask for a real yes/no decision. Phrase it so yes is the action and no is the safe default.
@@ -133,7 +135,7 @@ MCP clients get the last six at `POST /mcp`. `yap_setup` is REST only.
 
 ## Scripts
 
-Helpers under `scripts/` (2s timeout; missing env is silent success except `yap-setup`):
+Helpers under `scripts/` (missing env is silent success except `yap-setup`; timeouts and 5xx retry in the background):
 
 ```bash
 export YAP_API_URL=https://yap-api.desperate.dk
